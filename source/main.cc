@@ -1,109 +1,119 @@
 #include <iostream>
 #include <list>
-#include <math.h>
+#include <stdio.h>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+using ::std::list;
+ 
+int kbhit(void){
+	struct termios oldt, newt;
+  	int ch;
+  	int oldf;
+ 
+  	tcgetattr(STDIN_FILENO, &oldt);
+  		newt = oldt;
+  		newt.c_lflag &= ~(ICANON | ECHO);
+  	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+  		oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+  	fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+  		ch = getchar();  
+ 
+  	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  	fcntl(STDIN_FILENO, F_SETFL, oldf);
+ 
+  	if(ch != EOF){
+    	ungetc(ch, stdin);
+    		return 1;
+  }
+ 
+  return 0;
+};
+ 
 
-class File{
-	public:
-		virtual float read() = 0;
+class button{
+	public: 
+		char value;
+		bool state;
+};
+class EventHandler{
+//private: 
+public:
+	virtual void onEvent(char eventData) = 0;
+
 };
 
-class SineFile : public File{
-	private:
-		int n;
-		float freqHz;
-		float freqSample;
-	public:
-		#define PI 3.1416
-		SineFile(float freqHz, float freqSample){
-			this->n = 0;
-			this->freqHz = freqHz;
-			this->freqSample= freqSample;
+class MP3 : public EventHandler{
+private: 
+	int volumen;
+	char key_plus;
+	char key_minus;
+	int serial_number;
+public: 
+	MP3(int serial_number, char key_plus,char key_minus){
+		this->volumen = 50;
+		this->serial_number =serial_number;
+		this->key_plus = key_plus;
+		this->key_minus = key_minus;
+	}
+	void increaseVolumen(void){
+		volumen++;
+	}
+	void decreaseVolumen(void){
+		volumen--;
+	}
+	int getVolumen(void){
+		return volumen;
+	}
+	virtual void onEvent(char eventData){
+		if(eventData == key_plus){
+			this->increaseVolumen();
+			std::cout<< "\n#serial:"<<serial_number <<"\n new voulmen"<< volumen << eventData<< std::endl;
+		}else if(eventData == key_minus){
+			this->decreaseVolumen();
+			std::cout<< "\n#serial:"<<serial_number <<"\n new voulmen"<< volumen << eventData<< std::endl;
+		
 		}
-		virtual float read(){
-			float t = n/freqSample;
-			float signal =  sin(t*2*PI*freqHz);
-			this->n++;
-			return signal;
-		}
+	}
+
 };
-
-class Filter{
-	public:
-		virtual float process(float signal) = 0;
+class Observable {
+protected: 
+	list<EventHandler*> observers; 
+	void notifyAll(char eventData){
+		for(auto observer : observers){
+			observer->onEvent(eventData);
+		}
+	}
+public: 
+	void suscribe(EventHandler& eventHandler){
+		observers.push_back(&eventHandler);
+	}
+	void unsuscribe(EventHandler& eventData);
+	
 };
-
-class NoneFilter : public Filter{
-	public:
-		virtual float process(float signal){
-			return signal;
+class KeyBoardreader : public Observable{
+public:
+	void readloop(void){
+		int counter=0;
+		char c ='0';
+		std::cout<< "prees any key to quit" << std::endl;
+		while(c !='q'){
+			while(kbhit() == 0){
+				counter++;
+			} 
+			c = getchar();
+			this->notifyAll(c);
 		}
-};
-
-class OutputDevice{
-	public:
-		virtual void write(float signal) = 0;
-};
-
-class PrinterOutputDevice : public OutputDevice{
-	public:
-		virtual void write(float signal){
-			std::cout << "signal = " << signal << std::endl;
-		}
-};
-
-
-class MP3{
-	private:
-		std::list<File*>::iterator songs;
-		Filter* filter;
-		OutputDevice* outputDevice;
-	public:
-		MP3(std::list<File*>::iterator& songs, Filter& filter, OutputDevice& outputDevice){
-			this->songs = songs;
-			this->filter = &filter;
-			this->outputDevice = &outputDevice;
-		}
-		void play(void){
-			auto file  = *songs;
-			float songData = file->read();
-			float filteredData = filter->process(songData);
-			outputDevice->write(filteredData);
-		}
-		void next(void){
-			songs++;
-		}
-		void back(void){
-			songs--;
-		}
+	}
 };
 
 int main(){
-	SineFile file1(1,10);
-	SineFile file2(2,10);
-	std::list<File*> songs;
-	songs.push_back(&file1);
-	songs.push_back(&file2);
-
-	NoneFilter filter;
-	PrinterOutputDevice outputDevice;
-
-	auto songsInterator = songs.begin();
-	MP3 mp3(songsInterator, filter, outputDevice);
-
-
-	for(int i = 0; i <= 10; i++){
-		mp3.play();
-	}
-	std::cout << "new songs" <<  std::endl;
-	mp3.next();
-	for(int i = 0; i <= 10; i++){
-		mp3.play();
-	}
-	std::cout << "new songs" <<  std::endl;
-	mp3.back();
-	for(int i = 0; i <= 10; i++){
-		mp3.play();
-	}
-
-	return 0;
+	MP3 mp3_1(1,'+','-');
+	MP3 mp3_2(2,'p','m');	
+	KeyBoardreader reader;
+	reader.suscribe(mp3_1);
+	reader.suscribe(mp3_2);
+	reader.readloop();
+		return 0;
 }
