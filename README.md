@@ -1,2 +1,2 @@
-# Cpp_06 estrategy pattern
-Ejemplo del patron de estrategia
+# Cpp_07 observer pattern
+Ejemplo del patron del observador
