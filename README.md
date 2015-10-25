@@ -1,2 +1,2 @@
-# cpp_testable_exec
-A Make based template for building and testng C++ applications
+# Cpp_06 estrategy pattern
+Ejemplo del patron de estrategia
